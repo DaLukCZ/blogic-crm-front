@@ -1,87 +1,62 @@
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { api } from '@/api'
+import { useAuthStore } from '@/auth'
 
-const users = ref([
-    {
-        id: 1,
-        username: 'sejtam',
-        firstName: 'Tomáš',
-        lastName: 'Novák',
-        email: 'tomas@seznam.cz',
-        countryCode: '+420',
-        number: '777123456',
-        ssn: '8501011234',
-        role: 'Klient'
-    },
-    {
-        id: 2,
-        username: 'jporadce',
-        firstName: 'Jana',
-        lastName: 'Poradkyně',
-        email: 'jana@firma.cz',
-        countryCode: '+420',
-        number: '602654321',
-        ssn: '8403117890',
-        role: 'Poradce'
-    },
-    {
-        id: 3,
-        username: 'admin1',
-        firstName: 'Adam',
-        lastName: 'Admin',
-        email: 'admin@crm.cz',
-        countryCode: '+421',
-        number: '905123456',
-        ssn: '8001019999',
-        role: 'Admin'
+const router = useRouter()
+const auth = useAuthStore()
+
+onMounted(() => {
+    if (auth.user?.role === 'Klient') {
+        router.replace('/contracts')
+    } else {
+        fetchUsers()
     }
-])
+})
 
+const users = ref([])
 const selectedRole = ref('Vše')
 const searchQuery = ref('')
 const deleteModalVisible = ref(false)
 const userToDelete = ref(null)
 
 const editingId = ref(null)
-const editedUser = reactive({})
+const editedUser = ref({})
 
-const startEdit = (user) => {
-    editingId.value = user.id
-    Object.assign(editedUser, { ...user })
-}
-
-const cancelEdit = () => {
-    editingId.value = null
-    Object.keys(editedUser).forEach(k => delete editedUser[k])
-}
-
-const saveEdit = () => {
-    const index = users.value.findIndex(u => u.id === editingId.value)
-    if (index !== -1) {
-        users.value[index] = { ...editedUser }
+const fetchUsers = async () => {
+    try {
+        const data = await api('/api/Users')
+        users.value = data.map(user => {
+            const { age, gender } = getAgeAndGender(user.ssn)
+            return {
+                ...user,
+                age,
+                gender,
+                role: user.role?.name ?? '-'
+            }
+        })
+    } catch (err) {
+        console.error('Chyba při načítání uživatelů:', err.message)
     }
-    cancelEdit()
 }
 
-const confirmDelete = (user) => {
-    userToDelete.value = user
-    deleteModalVisible.value = true
+const getAgeAndGender = (ssn) => {
+    if (!ssn) return { age: '-', gender: '-' }
+    const clean = ssn.replace('/', '')
+    const year = parseInt(clean.substring(0, 2))
+    let month = parseInt(clean.substring(2, 4))
+    const day = parseInt(clean.substring(4, 6))
+    const gender = month > 50 ? 'Žena' : 'Muž'
+    if (month > 50) month -= 50
+    const fullYear = year + (year < 50 ? 2000 : 1900)
+    const birthDate = new Date(fullYear, month - 1, day)
+    const today = new Date()
+    let age = today.getFullYear() - birthDate.getFullYear()
+    const m = today.getMonth() - birthDate.getMonth()
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--
+    return { age, gender }
 }
-
-const deleteUser = () => {
-    users.value = users.value.filter(u => u.id !== userToDelete.value.id)
-    deleteModalVisible.value = false
-    userToDelete.value = null
-}
-
-const filteredUsers = computed(() =>
-    users.value.filter(user => {
-        const roleMatch = selectedRole.value === 'Vše' || user.role === selectedRole.value
-        const searchMatch = [user.username, user.firstName, user.lastName, user.email]
-            .some(field => field.toLowerCase().includes(searchQuery.value.toLowerCase()))
-        return roleMatch && searchMatch
-    })
-)
 
 const formatSSN = (ssn) => {
     if (!ssn || ssn.length < 7) return ssn
@@ -92,13 +67,77 @@ const formatPhone = (code, number) => {
     if (!number) return ''
     return `${code} ${number.replace(/\D/g, '').replace(/(.{3})/g, '$1 ').trim()}`
 }
+
+const filteredUsers = computed(() =>
+    users.value.filter(user => {
+        const roleMatch = selectedRole.value === 'Vše' || user.role === selectedRole.value
+        const searchMatch = [user.username, user.firstName, user.lastName, user.email]
+            .some(field => field?.toLowerCase().includes(searchQuery.value.toLowerCase()))
+        return roleMatch && searchMatch
+    })
+)
+
+const startEdit = (user) => {
+    editingId.value = user.id
+    editedUser.value = { ...user }
+}
+
+const cancelEdit = () => {
+    editingId.value = null
+    editedUser.value = {}
+}
+
+const saveEdit = async () => {
+    try {
+        const payload = {
+            id: editedUser.value.id,
+            username: editedUser.value.username,
+            passwordHash: editedUser.value.passwordHash ?? '',
+            firstName: editedUser.value.firstName,
+            lastName: editedUser.value.lastName,
+            email: editedUser.value.email,
+            countryCode: editedUser.value.countryCode,
+            number: editedUser.value.number,
+            ssn: editedUser.value.ssn,
+            roleId: editedUser.value.roleId
+        }
+
+        await api(`/api/Users/${editingId.value}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload)
+        })
+
+        cancelEdit()
+        await fetchUsers()
+    } catch (err) {
+        console.error('Chyba při ukládání:', err.message)
+    }
+}
+
+const confirmDelete = (user) => {
+    userToDelete.value = user
+    deleteModalVisible.value = true
+}
+
+const deleteUser = async () => {
+    try {
+        await api(`/api/Users/${userToDelete.value.id}`, {
+            method: 'DELETE'
+        })
+        deleteModalVisible.value = false
+        userToDelete.value = null
+        await fetchUsers()
+    } catch (err) {
+        console.error('Chyba při mazání:', err.message)
+    }
+}
 </script>
 
 <template>
     <div
         class="min-h-screen bg-gradient-to-tr from-cyan-300 via-sky-400 to-teal-500 flex items-start justify-center pt-24 px-4 md:px-12">
         <div
-            class="bg-white/90 backdrop-blur-md w-full max-w-7xl h-full max-h-screen overflow-y-auto rounded-3xl shadow-2xl p-10 animate-slow-fade-in text-gray-700">
+            class="bg-white/90 backdrop-blur-md w-full max-w-[1400px] rounded-3xl shadow-2xl p-10 animate-slow-fade-in text-gray-700">
             <h2 class="text-4xl font-bold text-center mb-8">Seznam uživatelů</h2>
 
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mt-6 mb-10 py-6">
@@ -123,6 +162,8 @@ const formatPhone = (code, number) => {
                             <th class="px-4 py-3">E-mail</th>
                             <th class="px-4 py-3">Telefon</th>
                             <th class="px-4 py-3">Rodné číslo</th>
+                            <th class="px-4 py-3">Věk</th>
+                            <th class="px-4 py-3">Pohlaví</th>
                             <th class="px-4 py-3">Role</th>
                             <th class="px-4 py-3 text-center">Akce</th>
                         </tr>
@@ -135,41 +176,49 @@ const formatPhone = (code, number) => {
                             <template v-if="editingId === user.id">
                                 <td class="px-4 py-3">
                                     <input v-model="editedUser.username"
-                                        class="w-full px-3 py-2 rounded-xl border border-cyan-300 shadow-sm focus:ring-2 focus:ring-cyan-400" />
+                                        class="w-full px-3 py-2 rounded-md border border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400" />
                                 </td>
-                                <td class="px-4 py-3 flex gap-2">
-                                    <input v-model="editedUser.firstName"
-                                        class="w-full px-3 py-2 rounded-xl border border-cyan-300 shadow-sm focus:ring-2 focus:ring-cyan-400" />
-                                    <input v-model="editedUser.lastName"
-                                        class="w-full px-3 py-2 rounded-xl border border-cyan-300 shadow-sm focus:ring-2 focus:ring-cyan-400" />
+                                <td class="px-4 py-3">
+                                    <div class="flex gap-2">
+                                        <input v-model="editedUser.firstName" placeholder="Jméno"
+                                            class="w-full px-3 py-2 rounded-md border border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+                                        <input v-model="editedUser.lastName" placeholder="Příjmení"
+                                            class="w-full px-3 py-2 rounded-md border border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+                                    </div>
                                 </td>
                                 <td class="px-4 py-3">
                                     <input v-model="editedUser.email"
-                                        class="w-full px-3 py-2 rounded-xl border border-cyan-300 shadow-sm focus:ring-2 focus:ring-cyan-400" />
+                                        class="w-full px-3 py-2 rounded-md border border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400" />
                                 </td>
-                                <td class="px-4 py-3 flex gap-2">
-                                    <input v-model="editedUser.countryCode"
-                                        class="w-20 px-3 py-2 rounded-xl border border-cyan-300 shadow-sm focus:ring-2 focus:ring-cyan-400" />
-                                    <input v-model="editedUser.number"
-                                        class="w-full px-3 py-2 rounded-xl border border-cyan-300 shadow-sm focus:ring-2 focus:ring-cyan-400" />
+                                <td class="px-4 py-3">
+                                    <div class="flex gap-2">
+                                        <input v-model="editedUser.countryCode"
+                                            class="w-20 px-3 py-2 rounded-md border border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+                                        <input v-model="editedUser.number"
+                                            class="w-full px-3 py-2 rounded-md border border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+                                    </div>
                                 </td>
                                 <td class="px-4 py-3">
                                     <input v-model="editedUser.ssn"
-                                        class="w-full px-3 py-2 rounded-xl border border-cyan-300 shadow-sm focus:ring-2 focus:ring-cyan-400" />
+                                        class="w-full px-3 py-2 rounded-md border border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400" />
                                 </td>
+                                <td class="px-4 py-3">–</td>
+                                <td class="px-4 py-3">–</td>
                                 <td class="px-4 py-3">
-                                    <select v-model="editedUser.role"
-                                        class="w-full px-3 py-2 rounded-xl border border-cyan-300 shadow-sm focus:ring-2 focus:ring-cyan-400 bg-white">
-                                        <option value="Klient">Klient</option>
-                                        <option value="Poradce">Poradce</option>
-                                        <option value="Admin">Admin</option>
+                                    <select v-model="editedUser.roleId"
+                                        class="w-full px-3 py-2 rounded-md border border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 bg-white">
+                                        <option :value="1">Klient</option>
+                                        <option :value="2">Poradce</option>
+                                        <option :value="3">Admin</option>
                                     </select>
                                 </td>
                                 <td class="px-4 py-3 flex justify-center gap-2">
                                     <button @click="saveEdit"
-                                        class="px-4 py-2 bg-green-500 text-white rounded-xl shadow hover:brightness-110">Uložit</button>
+                                        class="px-4 py-2 bg-green-500 text-white rounded-lg shadow hover:brightness-110 transition">
+                                        Uložit</button>
                                     <button @click="cancelEdit"
-                                        class="px-4 py-2 bg-gray-400 text-white rounded-xl shadow hover:brightness-110">Zrušit</button>
+                                        class="px-4 py-2 bg-gray-400 text-white rounded-lg shadow hover:brightness-110 transition">
+                                        Zrušit</button>
                                 </td>
                             </template>
 
@@ -179,40 +228,29 @@ const formatPhone = (code, number) => {
                                 <td class="px-4 py-3">{{ user.email }}</td>
                                 <td class="px-4 py-3">{{ formatPhone(user.countryCode, user.number) }}</td>
                                 <td class="px-4 py-3">{{ formatSSN(user.ssn) }}</td>
+                                <td class="px-4 py-3">{{ user.age }}</td>
+                                <td class="px-4 py-3">{{ user.gender }}</td>
                                 <td class="px-4 py-3">{{ user.role }}</td>
                                 <td class="px-4 py-3 flex justify-center gap-2">
                                     <button @click="startEdit(user)"
-                                        class="px-4 py-2 bg-blue-500 text-white rounded-xl shadow hover:brightness-110">Editovat</button>
+                                        class="px-4 py-2 bg-blue-500 text-white rounded-lg shadow hover:brightness-110 transition">
+                                        Upravit</button>
                                     <button @click="confirmDelete(user)"
-                                        class="px-4 py-2 bg-red-500 text-white rounded-xl shadow hover:brightness-110">Smazat</button>
+                                        class="px-4 py-2 bg-red-500 text-white rounded-lg shadow hover:brightness-110 transition">
+                                        Smazat</button>
                                 </td>
                             </template>
                         </tr>
                         <tr v-if="filteredUsers.length === 0">
-                            <td colspan="8" class="text-center py-6 text-gray-500">Žádní uživatelé nenalezeni.</td>
+                            <td colspan="10" class="text-center py-6 text-gray-500">Žádní uživatelé nenalezeni.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
-
-    <!-- Delete Modal -->
-    <div v-if="deleteModalVisible" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-2xl p-8 max-w-md w-full shadow-xl text-center">
-            <h3 class="text-xl font-semibold mb-4">Opravdu chcete smazat uživatele?</h3>
-            <p class="mb-6 text-gray-600">
-                {{ userToDelete?.firstName }} {{ userToDelete?.lastName }} ({{ userToDelete?.email }})
-            </p>
-            <div class="flex justify-center gap-4">
-                <button @click="deleteUser" class="px-5 py-2 bg-red-600 text-white rounded hover:brightness-110">Ano,
-                    smazat</button>
-                <button @click="deleteModalVisible = false"
-                    class="px-5 py-2 bg-gray-300 rounded hover:brightness-110">Zrušit</button>
-            </div>
-        </div>
-    </div>
 </template>
+
 
 <style scoped>
 @keyframes slow-fade-in {

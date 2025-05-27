@@ -3,10 +3,14 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { createWebHistory, createRouter } from 'vue-router'
 
+import { createPinia } from 'pinia'
+import { useAuthStore } from '@/auth'
+
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { fas } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
+// Pages
 import LoginPage from './pages/LoginPage.vue'
 import UsersPage from './pages/UsersPage.vue'
 import AddUserPage from './pages/AddUserPage.vue'
@@ -29,15 +33,36 @@ const routes = [
     { path: '/:pathMatch(.*)*', redirect: '/login' }
 ]
 
-
 const router = createRouter({
     history: createWebHistory(),
     routes,
 })
 
 const app = createApp(App)
+const pinia = createPinia()
+
+app.use(pinia)
 app.use(router)
-
 app.component('font-awesome-icon', FontAwesomeIcon)
-
 app.mount('#app')
+
+// 🔒 Route Guard
+router.beforeEach(async (to, from, next) => {
+    const publicPages = ['/login']
+    const auth = useAuthStore()
+
+    // Pokud máme token ale nemáme načteného uživatele
+    await auth.fetchUser()
+
+    const authRequired = !publicPages.includes(to.path)
+
+    if (authRequired && !auth.user) {
+        return next('/login')
+    }
+
+    if (to.path === '/login' && auth.user) {
+        return next('/contracts')
+    }
+
+    next()
+})

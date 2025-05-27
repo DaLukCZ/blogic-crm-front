@@ -1,6 +1,10 @@
 <script setup>
 import { ref } from 'vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { api } from '@/api'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const form = ref({
     username: '',
@@ -28,7 +32,23 @@ const errors = ref({
     roleId: ''
 })
 
-const submitUser = () => {
+function isValidSsnFormat(ssn) {
+    return /^\d{6}\/?\d{3,4}$/.test(ssn)
+}
+
+function isDivisibleBy11Rule(ssn) {
+    const clean = ssn.replace('/', '')
+    if (!/^\d+$/.test(clean)) return false
+
+    const digits = clean.split('').map(d => parseInt(d))
+    const oddSum = digits.filter((_, i) => i % 2 === 0).reduce((a, b) => a + b, 0)
+    const evenSum = digits.filter((_, i) => i % 2 !== 0).reduce((a, b) => a + b, 0)
+    const diff = Math.abs(oddSum - evenSum)
+
+    return diff % 11 === 0
+}
+
+const submitUser = async () => {
     Object.keys(errors.value).forEach(key => (errors.value[key] = ''))
     let isValid = true
 
@@ -53,35 +73,52 @@ const submitUser = () => {
         isValid = false
     }
     if (!form.value.countryCode.trim() || form.value.countryCode.length > 5) {
-        errors.value.countryCode = 'Zadejte platný kód země (max 5 znaků).'
+        errors.value.countryCode = 'Zadejte platný kód země (max 6 znaků).'
         isValid = false
     }
     if (!form.value.phoneNumber.trim() || form.value.phoneNumber.length > 15) {
         errors.value.phoneNumber = 'Zadejte telefonní číslo (max 15 znaků).'
         isValid = false
     }
-    if (!form.value.ssn.trim() || form.value.ssn.length > 10) {
-        errors.value.ssn = 'Rodné číslo max. 10 znaků.'
+    if (!form.value.ssn.trim()) {
+        errors.value.ssn = 'Rodné číslo je povinné.'
+        isValid = false
+    } else if (!isValidSsnFormat(form.value.ssn)) {
+        errors.value.ssn = 'Zadejte správný formát (např. 850101/1234).'
+        isValid = false
+    } else if (!isDivisibleBy11Rule(form.value.ssn)) {
+        errors.value.ssn = 'Rodné číslo nesplňuje pravidlo dělitelnosti 11.'
         isValid = false
     }
 
     if (!isValid) return
 
-    console.log('Přidat uživatele:', { ...form.value })
+    try {
+        const payload = {
+            ...form.value,
+            ssn: form.value.ssn.replace('/', '')
+        }
+
+        await api('/api/Users', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        })
+
+        router.push('/user/list')
+    } catch (err) {
+        console.error(err)
+    }
 }
 </script>
+
 
 <template>
     <div
         class="w-screen h-screen flex items-start justify-center pt-24 px-4 bg-gradient-to-tr from-cyan-300 via-sky-400 to-teal-500">
-
-
         <div
             class="bg-white/90 backdrop-blur-md px-12 py-8 rounded-3xl shadow-2xl w-full max-w-3xl mx-4 animate-slow-fade-in">
             <h2 class="text-3xl font-bold text-center text-gray-700 mb-3">Přidat uživatele</h2>
-            <div class="py-4">
 
-            </div>
             <form @submit.prevent="submitUser" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Username -->
                 <div>
@@ -150,7 +187,7 @@ const submitUser = () => {
                     <div>
                         <label class="block text-sm font-semibold text-cyan-800">Kód země <span
                                 class="text-red-500">*</span></label>
-                        <input v-model="form.countryCode" type="text" maxlength="5" placeholder="+420" :class="[
+                        <input v-model="form.countryCode" type="text" maxlength="6" placeholder="+420" :class="[
                             'mt-1 w-full px-4 py-3 rounded-lg shadow-sm text-gray-700 bg-white',
                             errors.countryCode ? 'border border-red-400' : 'border border-cyan-300'
                         ]" />
@@ -171,7 +208,7 @@ const submitUser = () => {
                 <div>
                     <label class="block text-sm font-semibold text-cyan-800">Rodné číslo <span
                             class="text-red-500">*</span></label>
-                    <input v-model="form.ssn" type="text" maxlength="10" placeholder="850101/1234" :class="[
+                    <input v-model="form.ssn" type="text" maxlength="11" placeholder="850101/1234" :class="[
                         'mt-1 w-full px-4 py-3 rounded-lg shadow-sm text-gray-700 bg-white',
                         errors.ssn ? 'border border-red-400' : 'border border-cyan-300'
                     ]" />
@@ -193,13 +230,15 @@ const submitUser = () => {
                     <p v-if="errors.roleId" class="text-sm text-red-600 mt-1">{{ errors.roleId }}</p>
                 </div>
 
-
-                <!-- Submit button - full width -->
+                <!-- Submit button -->
                 <div class="md:col-span-2">
                     <button type="submit"
                         class="bg-gradient-to-r from-cyan-500 to-teal-500 text-white w-full py-3 rounded-xl shadow-md hover:brightness-110 transition-all duration-300 ease-in-out transform hover:-translate-y-0.5">
                         PŘIDAT UŽIVATELE
                     </button>
+                    <p v-if="errors.general" class="text-sm text-red-600 mt-2 text-center">
+                        {{ errors.general }}
+                    </p>
                 </div>
             </form>
         </div>
