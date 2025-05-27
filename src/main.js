@@ -10,6 +10,10 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import LoginPage from './pages/LoginPage.vue'
 import UsersPage from './pages/UsersPage.vue'
 import AddUserPage from './pages/AddUserPage.vue'
+import ContractsPage from './pages/ContractsPage.vue'
+import AddContractPage from './pages/AddContractPage.vue'
+import ContractDetailPage from './pages/ContractDetailPage.vue'
+import ClientDetailPage from './pages/ClientDetailPage.vue'
 
 library.add(fas)
 
@@ -18,7 +22,12 @@ const routes = [
     { path: '/login', component: LoginPage },
     { path: '/user/add', component: AddUserPage },
     { path: '/user/list', component: UsersPage },
-];
+    { path: '/contracts', component: ContractsPage },
+    { path: '/contracts/add', component: AddContractPage },
+    { path: '/contracts/id', component: ContractDetailPage, props: true },
+    { path: '/clients/id', component: ClientDetailPage, props: true },
+    { path: '/:pathMatch(.*)*', redirect: '/login' }
+]
 
 
 const router = createRouter({

@@ -73,7 +73,9 @@ const submitUser = () => {
 
 <template>
     <div
-        class="w-screen h-screen flex items-center justify-center bg-gradient-to-tr from-cyan-300 via-sky-400 to-teal-500">
+        class="w-screen h-screen flex items-start justify-center pt-24 px-4 bg-gradient-to-tr from-cyan-300 via-sky-400 to-teal-500">
+
+
         <div
             class="bg-white/90 backdrop-blur-md px-12 py-8 rounded-3xl shadow-2xl w-full max-w-3xl mx-4 animate-slow-fade-in">
             <h2 class="text-3xl font-bold text-center text-gray-700 mb-3">Přidat uživatele</h2>

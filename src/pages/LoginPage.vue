@@ -36,7 +36,8 @@ const login = () => {
 
 <template>
     <div
-        class="w-screen h-screen flex flex-col items-center justify-center bg-gradient-to-tr from-cyan-300 via-sky-400 via-60% to-teal-500 transition-all duration-1000">
+        class="w-screen h-screen flex flex-col items-center justify-start p-24 bg-gradient-to-tr from-cyan-300 via-sky-400 via-60% to-teal-500 transition-all duration-1000 ">
+
 
         <!-- Titulek s animací -->
         <h1 class="text-white font-extrabold text-6xl mb-24 py-8 tracking-wide typing-title"
@@ -45,7 +46,8 @@ const login = () => {
         </h1>
 
         <!-- Přihlašovací box -->
-        <div class="bg-white/90 backdrop-blur-md py-8 px-12 rounded-3xl shadow-2xl w-full max-w-md mx-4 animate-slow-fade-in">
+        <div
+            class="bg-white/90 backdrop-blur-md py-8 px-12 rounded-3xl shadow-2xl w-full max-w-md mx-4 animate-slow-fade-in">
             <h2 class="text-3xl font-medium text-center text-gray-700 mb-10">Přihlášení</h2>
 
             <form @submit.prevent="login" class="space-y-6">
