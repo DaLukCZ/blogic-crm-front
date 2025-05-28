@@ -19,6 +19,9 @@ const form = ref({
 })
 
 const showPassword = ref(false)
+const showSuccessModal = ref(false)
+const addedUserName = ref('')
+const backendError = ref('')
 
 const errors = ref({
     username: '',
@@ -39,17 +42,13 @@ function isValidSsnFormat(ssn) {
 function isDivisibleBy11Rule(ssn) {
     const clean = ssn.replace('/', '')
     if (!/^\d+$/.test(clean)) return false
-
-    const digits = clean.split('').map(d => parseInt(d))
-    const oddSum = digits.filter((_, i) => i % 2 === 0).reduce((a, b) => a + b, 0)
-    const evenSum = digits.filter((_, i) => i % 2 !== 0).reduce((a, b) => a + b, 0)
-    const diff = Math.abs(oddSum - evenSum)
-
-    return diff % 11 === 0
+    return parseInt(clean) % 11 === 0
 }
+
 
 const submitUser = async () => {
     Object.keys(errors.value).forEach(key => (errors.value[key] = ''))
+    backendError.value = ''
     let isValid = true
 
     if (!form.value.username.trim()) {
@@ -93,24 +92,37 @@ const submitUser = async () => {
 
     if (!isValid) return
 
-    try {
-        const payload = {
-            ...form.value,
-            ssn: form.value.ssn.replace('/', '')
-        }
+    const payload = {
+        username: form.value.username,
+        passwordHash: form.value.password,
+        roleId: form.value.roleId,
+        firstName: form.value.firstName,
+        lastName: form.value.lastName,
+        email: form.value.email,
+        countryCode: form.value.countryCode,
+        number: form.value.phoneNumber,
+        ssn: form.value.ssn.replace('/', '')
+    }
 
+    try {
         await api('/api/Users', {
             method: 'POST',
             body: JSON.stringify(payload)
         })
 
-        router.push('/user/list')
+        addedUserName.value = `${form.value.firstName} ${form.value.lastName}`
+        showSuccessModal.value = true
     } catch (err) {
-        console.error(err)
+        console.error('Chyba při odesílání:', err)
+        backendError.value = err.message || 'Došlo k chybě při vytváření uživatele.'
     }
 }
-</script>
 
+const closeModal = () => {
+    showSuccessModal.value = false
+    router.push('/user/list')
+}
+</script>
 
 <template>
     <div
@@ -236,11 +248,19 @@ const submitUser = async () => {
                         class="bg-gradient-to-r from-cyan-500 to-teal-500 text-white w-full py-3 rounded-xl shadow-md hover:brightness-110 transition-all duration-300 ease-in-out transform hover:-translate-y-0.5">
                         PŘIDAT UŽIVATELE
                     </button>
-                    <p v-if="errors.general" class="text-sm text-red-600 mt-2 text-center">
-                        {{ errors.general }}
-                    </p>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div v-if="showSuccessModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl p-8 max-w-sm w-full shadow-xl text-center animate-slow-fade-in">
+            <h3 class="text-xl font-semibold mb-4 text-cyan-700">Uživatel přidán</h3>
+            <p class="text-gray-600 mb-6">Uživatel <strong>{{ addedUserName }}</strong> byl úspěšně přidán.</p>
+            <button @click="closeModal" class="px-6 py-2 bg-cyan-600 text-white rounded-lg shadow hover:brightness-110">
+                OK
+            </button>
         </div>
     </div>
 </template>

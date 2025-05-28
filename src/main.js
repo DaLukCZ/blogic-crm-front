@@ -17,7 +17,7 @@ import AddUserPage from './pages/AddUserPage.vue'
 import ContractsPage from './pages/ContractsPage.vue'
 import AddContractPage from './pages/AddContractPage.vue'
 import ContractDetailPage from './pages/ContractDetailPage.vue'
-import ClientDetailPage from './pages/ClientDetailPage.vue'
+import ClientDetailPage from './pages/UserDetailPage.vue'
 
 library.add(fas)
 
@@ -28,10 +28,11 @@ const routes = [
     { path: '/user/list', component: UsersPage },
     { path: '/contracts', component: ContractsPage },
     { path: '/contracts/add', component: AddContractPage },
-    { path: '/contracts/id', component: ContractDetailPage, props: true },
-    { path: '/clients/id', component: ClientDetailPage, props: true },
+    { path: '/contracts/:id', component: ContractDetailPage, props: true },
+    { path: '/clients/:id', component: ClientDetailPage, props: true },
     { path: '/:pathMatch(.*)*', redirect: '/login' }
 ]
+
 
 const router = createRouter({
     history: createWebHistory(),
