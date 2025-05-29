@@ -17,14 +17,21 @@ const editingId = ref(null)
 const editedUser = ref({})
 const errorsEdit = ref({})
 
+const isAdmin = computed(() => auth.user?.role?.toLowerCase() === 'admin')
+const isAdvisor = computed(() => auth.user?.role?.toLowerCase() === 'poradce')
+
 onMounted(() => {
-    if (auth.user?.role === 'klient') {
+    if (auth.user?.role?.toLowerCase() === 'klient') {
         router.replace('/contracts')
     } else {
         fetchUsers()
         fetchRoles()
     }
 })
+
+function goToUserDetail(userId) {
+    router.push(`/users/${userId}`)
+}
 
 const fetchUsers = async () => {
     try {
@@ -110,6 +117,11 @@ function isDivisibleBy11Rule(ssn) {
 }
 
 const saveEdit = async () => {
+    if (!(isAdmin.value || isAdvisor.value)) {
+        alert('Nemáte oprávnění upravovat uživatele.')
+        return
+    }
+
     const u = editedUser.value
     const err = {}
 
@@ -152,11 +164,22 @@ const saveEdit = async () => {
 }
 
 const confirmDelete = (user) => {
+    if (!isAdmin.value) {
+        alert('Nemáte oprávnění mazat uživatele.')
+        return
+    }
     userToDelete.value = user
     deleteModalVisible.value = true
 }
 
 const deleteUser = async () => {
+    if (!isAdmin.value) {
+        alert('Nemáte oprávnění mazat uživatele.')
+        return
+    }
+
+    if (!userToDelete.value) return
+
     try {
         await api(`/api/Users/${userToDelete.value.id}`, {
             method: 'DELETE'
@@ -168,9 +191,43 @@ const deleteUser = async () => {
         console.error('Chyba při mazání:', err.message)
     }
 }
+
+const closeModal = () => {
+    deleteModalVisible.value = false
+    userToDelete.value = null
+}
+
+const exportUsers = async () => {
+    try {
+        const response = await api('/api/Users/export');
+        const base64Csv = response.data?.base64Csv || response.base64Csv;
+
+        if (!base64Csv) {
+            throw new Error('Nebyl přijat CSV soubor.');
+        }
+
+        const byteCharacters = atob(base64Csv);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'text/csv;charset=utf-8' });
+
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'users_export.csv');
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        alert(error.message || 'Nepodařilo se exportovat uživatele.');
+    }
+};
 </script>
-
-
 
 <template>
     <div
@@ -178,23 +235,35 @@ const deleteUser = async () => {
         <div
             class="bg-white/90 backdrop-blur-md w-full max-w-[1600px] rounded-3xl shadow-2xl p-10 animate-slow-fade-in text-gray-700">
             <h2 class="text-4xl font-bold text-center mb-8">Seznam uživatelů</h2>
-
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mt-6 mb-10 py-6">
                 <input v-model="searchQuery" type="text" placeholder="Vyhledat uživatele podle jména, e-mailu..."
-                    class="px-6 py-4 w-full md:w-1/3 rounded-xl border border-cyan-300 shadow-sm focus:ring-2 focus:ring-cyan-400 bg-white" />
+                    class="px-6 py-4 w-full md:w-2/5 rounded-xl border border-cyan-300 shadow-sm focus:ring-2 focus:ring-cyan-400 bg-white" />
                 <select v-model="selectedRole"
-                    class="px-6 py-4 w-full md:w-1/3 rounded-xl border border-cyan-300 shadow-sm focus:ring-2 focus:ring-cyan-400 bg-white">
+                    class="px-6 py-4 w-full md:w-2/5 rounded-xl border border-cyan-300 shadow-sm focus:ring-2 focus:ring-cyan-400 bg-white">
                     <option value="Vše">Všechny role</option>
-                    <option v-for="role in roles" :key="role.id" :value="role.name">{{ role.name }}</option>
+                    <option v-for="role in roles" :key="role.id" :value="role.name">
+                        {{ role.name }}
+                    </option>
                 </select>
+
+                <div class="flex w-full md:w-1/5 gap-2">
+                    <button v-if="isAdmin || isAdvisor" @click="router.push('/users/add')"
+                        class="px-6 py-4 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl shadow transition">
+                        Přidat uživatele
+                    </button>
+                    <button v-if="isAdmin" @click="exportUsers"
+                        class="px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl shadow transition">
+                        Export uživatelů
+                    </button>
+                </div>
             </div>
 
             <div class="overflow-x-auto">
                 <table class="min-w-full table-auto border border-cyan-200 rounded-xl shadow text-sm md:text-base">
                     <thead class="bg-cyan-100 text-cyan-800 uppercase">
-                        <tr class="text-xs md:text-sm text-cyan-900 whitespace-nowrap">
+                        <tr class="text-xs md:text-sm text-cyan-900 whitespace-nowrap text-center">
                             <th class="px-2 py-3 w-8">ID</th>
-                            <th class="px-2 py-3 w-28">Uživatel</th>
+                            <th class="px-2 py-3 w-28">Uživatelské jméno</th>
                             <th class="px-2 py-3 w-32">Jméno</th>
                             <th class="px-2 py-3 w-32">Příjmení</th>
                             <th class="px-2 py-3 w-56">E-mail</th>
@@ -203,12 +272,12 @@ const deleteUser = async () => {
                             <th class="px-2 py-3 w-16">Věk</th>
                             <th class="px-2 py-3 w-20">Pohlaví</th>
                             <th class="px-2 py-3 w-24">Role</th>
-                            <th class="px-2 py-3 text-center w-32">Akce</th>
+                            <th class="px-2 py-3 w-48">Akce</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-for="user in filteredUsers" :key="user.id"
-                            class="border-b border-cyan-100 hover:bg-cyan-50 bg-white transition">
+                            class="border-b border-cyan-100 hover:bg-cyan-50 bg-white transition text-center">
                             <td class="px-2 py-3">{{ user.id }}</td>
 
                             <template v-if="editingId === user.id">
@@ -254,16 +323,17 @@ const deleteUser = async () => {
                                 <td class="px-2 py-3">
                                     <select v-model="editedUser.roleId"
                                         class="w-full px-3 py-2 rounded-md border border-cyan-300 focus:outline-none focus:ring-2 bg-white">
-                                        <option v-for="role in roles" :key="role.id" :value="role.id">{{ role.name }}
+                                        <option v-for="role in roles" :key="role.id" :value="role.id">
+                                            {{ role.name }}
                                         </option>
                                     </select>
                                 </td>
                                 <td class="px-2 py-3 flex justify-center gap-2">
-                                    <button @click="saveEdit"
+                                    <button @click.stop="saveEdit"
                                         class="px-4 py-2 bg-green-500 text-white rounded-lg shadow hover:brightness-110 transition">
-                                        Uložit
+                                        Potvrdit
                                     </button>
-                                    <button @click="cancelEdit"
+                                    <button @click.stop="cancelEdit"
                                         class="px-4 py-2 bg-gray-400 text-white rounded-lg shadow hover:brightness-110 transition">
                                         Zrušit
                                     </button>
@@ -281,11 +351,17 @@ const deleteUser = async () => {
                                 <td class="px-2 py-3">{{ user.gender }}</td>
                                 <td class="px-2 py-3">{{ user.role }}</td>
                                 <td class="px-2 py-3 flex justify-center gap-2">
-                                    <button @click="startEdit(user)"
+                                    <button @click.stop="goToUserDetail(user.id)"
+                                        class="px-4 py-2 bg-green-500 text-white rounded-lg shadow hover:brightness-110 transition">
+                                        Detail
+                                    </button>
+
+                                    <button v-if="isAdmin || isAdvisor" @click.stop="startEdit(user)"
                                         class="px-4 py-2 bg-blue-500 text-white rounded-lg shadow hover:brightness-110 transition">
                                         Upravit
                                     </button>
-                                    <button @click="confirmDelete(user)"
+
+                                    <button v-if="isAdmin" @click.stop="confirmDelete(user)"
                                         class="px-4 py-2 bg-red-500 text-white rounded-lg shadow hover:brightness-110 transition">
                                         Smazat
                                     </button>
@@ -297,14 +373,27 @@ const deleteUser = async () => {
                             <td colspan="11" class="text-center py-6 text-gray-500">Žádní uživatelé nenalezeni.</td>
                         </tr>
                     </tbody>
-
                 </table>
             </div>
         </div>
     </div>
+
+    <!-- Confirmation Modal for Deletion -->
+    <div v-if="deleteModalVisible" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl p-8 max-w-sm w-full shadow-xl text-center animate-slow-fade-in">
+            <h3 class="text-xl font-semibold mb-4 text-cyan-700">Potvrďte smazání</h3>
+            <p class="text-gray-600 mb-6">
+                Opravdu chcete smazat uživatele <strong>{{ userToDelete?.username }}</strong>?
+            </p>
+            <button @click="deleteUser" class="px-8 py-2 bg-red-600 text-white rounded-lg shadow hover:brightness-110">
+                Smazat
+            </button>
+            <button @click="closeModal" class="px-8 py-2 bg-gray-400 text-white rounded-lg shadow hover:brightness-110">
+                Zrušit
+            </button>
+        </div>
+    </div>
 </template>
-
-
 
 <style scoped>
 @keyframes slow-fade-in {

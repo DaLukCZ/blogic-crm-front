@@ -1,11 +1,32 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
+import { useAuthStore } from '@/auth'
 
 const route = useRoute()
-const clientId = route.params.id ?? 1
+const router = useRouter()
+const auth = useAuthStore()
+
+const clientId = ref(route.params.id)
 const client = ref(null)
+const contracts = ref([])
+
+function formatDate(date) {
+    if (!date || date === 'Nezadáno') return 'Nezadáno'
+    const d = new Date(date)
+    if (isNaN(d)) return date
+    const day = String(d.getDate()).padStart(2, '0')
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const year = d.getFullYear()
+    return `${day}. ${month}. ${year}`
+}
+
+const checkAccess = (id) => {
+    if (auth.user.role.toLowerCase() === 'klient' && auth.user.id !== Number(id)) {
+        router.replace(`/users/${auth.user.id}`)
+    }
+}
 
 const formatSSN = ssn => {
     if (!ssn || ssn.length < 7) return 'Nezadáno'
@@ -51,88 +72,116 @@ const calculateAgeFromSSN = ssn => {
     return isNaN(age) ? 'Nezadáno' : age
 }
 
-const fetchClientDetail = async () => {
+const fetchClientDetail = async (id) => {
+    checkAccess(id)
     try {
-        const data = await api(`/api/Users/${clientId}`)
-        client.value = {
-            ...data,
-            contracts: data.clientContracts?.map(c => ({
-                id: c.id,
-                number: c.referenceNumber,
-                institution: c.institution?.name ?? 'Neznámá instituce',
-                dateSigned: c.dateSigned?.slice(0, 10),
-                dateValidFrom: c.dateValidFrom?.slice(0, 10),
-                dateValidTo: c.dateValidTo?.slice(0, 10)
-            })) ?? []
-        }
+        const data = await api(`/api/Users/${id}`)
+        client.value = data
     } catch (err) {
         console.error('Chyba při načítání detailu uživatele:', err)
     }
 }
 
-onMounted(fetchClientDetail)
+const fetchClientContracts = async (id) => {
+    try {
+        const data = await api(`/api/Contracts/byuser/${id}`)
+        contracts.value = data.map(c => ({
+            id: c.id,
+            number: c.referenceNumber,
+            institution: c.institutionName ?? 'Neznámá instituce',
+            dateSigned: c.dateSigned?.slice(0, 10) ?? 'Nezadáno',
+            dateValidFrom: c.dateValidFrom?.slice(0, 10) ?? 'Nezadáno',
+            dateValidTo: c.dateValidTo?.slice(0, 10) ?? 'Nezadáno'
+        }))
+    } catch (err) {
+        console.error('Nepodařilo se načíst smlouvy klienta:', err)
+    }
+}
+
+onMounted(() => {
+    fetchClientDetail(clientId.value)
+    fetchClientContracts(clientId.value)
+})
+
+watch(() => route.params.id, (newId) => {
+    clientId.value = newId
+    fetchClientDetail(newId)
+    fetchClientContracts(newId)
+})
+
+function goToContractDetail(contractId) {
+    router.push(`/contracts/${contractId}`)
+}
+
+const showChangePasswordModal = ref(false)
+
+function openChangePasswordModal() {
+    showChangePasswordModal.value = true
+}
+function closeChangePasswordModal() {
+    showChangePasswordModal.value = false
+}
 </script>
 
 <template>
     <div
         class="min-h-screen bg-gradient-to-tr from-cyan-300 via-sky-400 to-teal-500 flex items-start justify-center pt-24 px-4 md:px-12">
         <div
-            class="bg-white/90 backdrop-blur-md w-full max-w-4xl rounded-3xl shadow-2xl p-10 animate-slow-fade-in text-gray-800">
-            <h2 class="text-4xl font-bold text-center text-cyan-800 mb-10 pb-8">
-                {{ displayOrDefault(client?.firstName) }} {{ displayOrDefault(client?.lastName) }}<br>
-                {{ displayOrDefault(client?.username) }} - {{ displayOrDefault(client?.role?.name) }}
+            class="bg-white/90 backdrop-blur-md w-full max-w-4xl rounded-3xl shadow-2xl p-6 md:p-10 animate-slow-fade-in text-gray-800">
+            <h2 class="text-3xl md:text-4xl font-bold text-center text-cyan-800 mb-8 md:mb-10 pb-6">
+                {{ displayOrDefault(client?.firstName) }} {{ displayOrDefault(client?.lastName) }}<br />
+                {{ displayOrDefault(client?.role?.name) }}
             </h2>
-
 
             <!-- Kontaktní údaje -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6 text-center">
-                <div class="bg-white rounded-2xl border border-cyan-200">
+                <div class="bg-white rounded-2xl border border-cyan-200 p-4">
                     <p class="text-sm text-gray-500">E-mail</p>
-                    <p class="text-lg font-medium">{{ displayOrDefault(client?.email) }}</p>
+                    <p class="text-lg font-medium break-words">{{ displayOrDefault(client?.email) }}</p>
                 </div>
-                <div class="bg-white rounded-2xl border border-cyan-200">
+                <div class="bg-white rounded-2xl border border-cyan-200 p-4">
                     <p class="text-sm text-gray-500">Telefon</p>
-                    <p class="text-lg font-medium">{{ formatPhone(client?.countryCode, client?.number) }}</p>
+                    <p class="text-lg font-medium break-words">{{ formatPhone(client?.countryCode, client?.number) }}
+                    </p>
                 </div>
             </div>
 
             <!-- Osobní údaje -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12 pt-4 text-center">
-                <div class="bg-white rounded-2xl border border-cyan-200">
+                <div class="bg-white rounded-2xl border border-cyan-200 p-4">
                     <p class="text-sm text-gray-500">Rodné číslo</p>
                     <p class="text-lg font-medium">{{ formatSSN(client?.ssn) }}</p>
                 </div>
-                <div class="bg-white rounded-2xl border border-cyan-200">
+                <div class="bg-white rounded-2xl border border-cyan-200 p-4">
                     <p class="text-sm text-gray-500">Pohlaví</p>
                     <p class="text-lg font-medium">{{ getGenderFromSSN(client?.ssn) }}</p>
                 </div>
-                <div class="bg-white rounded-2xl border border-cyan-200">
+                <div class="bg-white rounded-2xl border border-cyan-200 p-4">
                     <p class="text-sm text-gray-500">Věk</p>
                     <p class="text-lg font-medium">{{ calculateAgeFromSSN(client?.ssn) }}</p>
                 </div>
             </div>
 
-            <!-- Smlouvy -->
-            <div>
-                <h3 class="text-2xl font-semibold text-cyan-800 mb-4 pt-4">Smlouvy klienta</h3>
+            <!-- Smlouvy klienta -->
+            <div class="space-y-16 mt-10">
+                <h3 class="text-2xl font-bold text-cyan-900 mb-6 border-b border-gray-300 pb-2 pt-2 text-center">
+                    Smlouvy klienta
+                </h3>
 
-                <div v-if="client?.contracts.length"
+                <div v-if="contracts.length"
                     class="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 py-3">
-                    <div v-for="contract in client.contracts" :key="contract.id"
-                        class="bg-white rounded-2xl shadow-md border border-cyan-200 p-4 hover:shadow-lg transition">
+                    <div v-for="contract in contracts" :key="contract.id" @click="goToContractDetail(contract.id)"
+                        class="bg-white rounded-2xl shadow-md border border-cyan-200 p-4 hover:shadow-lg transition cursor-pointer break-words max-w-full">
                         <div class="text-sm text-gray-500 mb-1">📄 Číslo smlouvy:</div>
-                        <div class="text-md font-semibold text-gray-800 mb-2">{{ displayOrDefault(contract.number) }}
-                        </div>
-                        <div class="text-sm text-gray-600">{{ displayOrDefault(contract.institution) }}</div>
-                        <div class="text-sm text-gray-500">Uzavřeno: {{ displayOrDefault(contract.dateSigned) }}</div>
-                        <div class="text-sm text-gray-500">Platnost od: {{ displayOrDefault(contract.dateValidFrom) }}
-                        </div>
-                        <div class="text-sm text-gray-500">Platnost do: {{ displayOrDefault(contract.dateValidTo) }}
-                        </div>
+                        <div class="text-md font-semibold text-gray-800 mb-2">{{ contract.number }}</div>
+                        <div class="text-md font-semibold text-gray-800 break-words">{{ contract.institution }}</div>
+                        <div class="text-sm text-gray-500">Uzavřeno: {{ formatDate(contract.dateSigned) }}</div>
+                        <div class="text-sm text-gray-500">Platnost od: {{ formatDate(contract.dateValidFrom) }}</div>
+                        <div class="text-sm text-gray-500">Platnost do: {{ formatDate(contract.dateValidTo) }}</div>
                     </div>
                 </div>
 
-                <p v-else class="text-gray-500 italic mt-4">Žádné smlouvy nejsou evidovány.</p>
+                <p v-else class="text-gray-500 italic mt-4 text-center">Žádné smlouvy nejsou evidovány.</p>
             </div>
         </div>
     </div>

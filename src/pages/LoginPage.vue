@@ -47,21 +47,19 @@ const login = async () => {
 
 <template>
     <div
-        class="w-screen h-screen flex flex-col items-center justify-center pb-24 bg-gradient-to-tr from-cyan-300 via-sky-400 via-60% to-teal-500 transition-all duration-1000 ">
-
+        class="min-h-screen flex flex-col items-center justify-center pb-24 px-4 bg-gradient-to-tr from-cyan-300 via-sky-400 via-60% to-teal-500 transition-all duration-1000">
         <!-- Logo -->
-        <h1 class="text-white font-extrabold text-6xl mb-24 py-8 tracking-wide typing-title"
+        <h1 class="text-white font-extrabold text-5xl sm:text-6xl mb-20 py-8 tracking-wide typing-title"
             style="font-family: 'Poppins', sans-serif;">
             Blogic CRM
         </h1>
 
         <!-- Box -->
         <div
-            class="bg-white/90 backdrop-blur-md py-8 px-12 rounded-3xl shadow-2xl w-full max-w-md mx-4 animate-slow-fade-in">
+            class="bg-white/90 backdrop-blur-md py-8 px-8 sm:px-12 rounded-3xl shadow-2xl w-full max-w-md animate-slow-fade-in">
             <h2 class="text-3xl font-medium text-center text-gray-700 mb-10">Přihlášení</h2>
 
             <form @submit.prevent="login" class="space-y-6">
-
                 <!-- Uživatelské jméno  -->
                 <div class="py-2">
                     <label class="block text-sm font-semibold text-cyan-800">
@@ -85,7 +83,8 @@ const login = async () => {
                             errors.password ? 'border border-red-400 focus:ring-red-400' : 'border border-cyan-300 focus:ring-cyan-400'
                         ]" />
                         <button type="button" @click="showPassword = !showPassword"
-                            class="absolute inset-y-0 right-4 flex items-center text-cyan-600 hover:text-cyan-800 transition duration-200">
+                            class="absolute inset-y-0 right-4 flex items-center text-cyan-600 hover:text-cyan-800 transition duration-200"
+                            aria-label="Zobrazit nebo skrýt heslo">
                             <font-awesome-icon :icon="showPassword ? 'fa-eye-slash' : 'fa-eye'" />
                         </button>
                     </div>
@@ -93,14 +92,14 @@ const login = async () => {
                 </div>
 
                 <!-- Submit -->
-                <div class="flex items-center justify-between text-sm pt-2">
+                <div class="pt-2">
                     <button type="submit"
                         class="bg-gradient-to-r from-cyan-500 to-teal-500 text-white w-full py-3 rounded-xl shadow-md hover:brightness-110 transition-all duration-300 ease-in-out transform hover:-translate-y-0.5">
                         PŘIHLÁSIT SE
                     </button>
                 </div>
 
-                <p v-if="errors.general" class="text-sm text-red-600 mt-2 text-center">
+                <p v-if="errors.general" class="text-sm text-red-600 mt-4 text-center">
                     {{ errors.general }}
                 </p>
             </form>

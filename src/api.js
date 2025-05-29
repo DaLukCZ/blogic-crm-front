@@ -1,5 +1,5 @@
 export async function api(path, options = {}) {
-    const baseUrl = 'https://localhost:7046' // uprav dle potřeby
+    const baseUrl = 'https://localhost:7046' //upravit dle portu API
 
     const token = localStorage.getItem('token')
 
