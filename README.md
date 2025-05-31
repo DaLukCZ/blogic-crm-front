@@ -11,7 +11,8 @@ Backendová část je dostupná v samostatném repozitáři: [blogic-crm-back](h
 - Vue 3 (Composition API)
 - Vite
 - Vue Router
-- Axios (pro volání API)
+- Tailwind CSS (styly a layout)
+- Fetch API (pro volání backendu)
 
 ---
 
@@ -35,7 +36,7 @@ Backendová část je dostupná v samostatném repozitáři: [blogic-crm-back](h
 
 2. Složka projektu by měla být otevřena v editoru (např. Visual Studio Code).
 
-3. V terminálu by měl být spuštěn následující příkaz pro instalaci závislostí V terminalu :
+3. V terminálu by měl být spuštěn následující příkaz pro instalaci závislostí:
    ```bash
    npm install
    ```
@@ -47,7 +48,7 @@ Backendová část je dostupná v samostatném repozitáři: [blogic-crm-back](h
 
 Frontend bude dostupný na adrese `http://localhost:5173`.
 
-⚠️ Backend API (`blogic-crm-back`) by mělo být spuštěno na `https://localhost:7046`. V případě potřeby lze upravit `baseURL` v konfiguraci Axiosu.
+⚠️ Backend API (`blogic-crm-back`) by mělo být spuštěno na `https://localhost:7046`. V případě potřeby lze upravit adresu `baseUrl` ve funkci `api()` ve složce `/src`.
 
 ---
 
@@ -56,21 +57,17 @@ Frontend bude dostupný na adrese `http://localhost:5173`.
 - Seznam smluv, klientů a poradců
 - Detailní pohled na každou entitu
 - Prokliky mezi smlouvou a klientem/poradcem
-- CRUD operace (vytváření, úprava, mazání záznamů)
+- CRUD operace (Create, Read, Update, Delete)
 - Formuláře s validací
+- Stylování pomocí Tailwind CSS
 
 ---
 
 ## 📁 Struktura projektu
 
-- `/src/components` – znovupoužitelné UI komponenty
-- `/src/views` – jednotlivé stránky (Smlouvy, Klienti, Poradci)
-- `/src/router` – konfigurace směrování
-- `/src/services` – API volání pomocí Axios
-
----
-
-## 🔗 Související repozitář
-
-Backendová část aplikace je dostupná v samostatném repozitáři:  
-➡️ [https://github.com/DaLukCZ/blogic-crm-back](https://github.com/DaLukCZ/blogic-crm-back)
+- `/src/pages` – jednotlivé stránky (např. `ContractsPage.vue`, `UsersPage.vue`, `LoginPage.vue`)
+- `/src/assets` – statické soubory (např. obrázky, styly)
+- `/src/api.js` – funkce `api(path, options)` pro volání backendu přes `fetch`
+- `/src/auth.js` – správa přihlášení a tokenu
+- `/src/main.js` – vstupní bod aplikace
+- `/src/App.vue` – kořenová komponenta aplikace
