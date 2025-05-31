@@ -1,14 +1,16 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import Multiselect from '@vueform/multiselect'
 import '@vueform/multiselect/themes/default.css'
 import { api } from '@/api'
 import { useRouter, useRoute } from 'vue-router'
+import { useAuthStore } from '@/auth' // 💡 tvoje cesta
+
+const auth = useAuthStore() // ✅ teď už je auth definovaný
 
 const router = useRouter()
 const route = useRoute()
-
-const contractId = route.params.id || null
+const contractId = ref(route.params.id || null)
 
 const institutions = ref([])
 const users = ref([])
@@ -43,42 +45,6 @@ const errors = ref({
     dateValidTo: ''
 })
 
-onMounted(async () => {
-    if (auth.user?.role?.toLowerCase() === 'klient') {
-        router.replace('/contracts')
-    }
-    try {
-        institutions.value = await api('/api/Institutions')
-        users.value = await api('/api/Users')
-
-        if (contractId) {
-            loading.value = true
-            const data = await api(`/api/Contracts/${contractId}`)
-            const inst = institutions.value.find(i => i.name === data.institutionName)
-            institutionSelect.value = inst ? inst.id : '__new__'
-            if (!inst) newInstitutionName.value = data.institutionName || ''
-
-            form.value.dateSigned = data.dateSigned?.slice(0, 10) || today
-            form.value.dateValidFrom = data.dateValidFrom?.slice(0, 10) || today
-            form.value.dateValidTo = data.dateValidTo?.slice(0, 10) || ''
-
-            form.value.clientIds = data.users
-                .filter(u => u.roleName?.toLowerCase() === 'klient')
-                .map(u => u.id)
-            form.value.advisorIds = data.users
-                .filter(u => u.roleName?.toLowerCase() === 'poradce')
-                .map(u => u.id)
-
-            originalReferenceNumber.value = data.referenceNumber || ''
-        }
-    } catch (err) {
-        error.value = 'Nepodařilo se načíst data.'
-        console.error(err)
-    } finally {
-        loading.value = false
-    }
-})
-
 const formatSsn = ssn => {
     if (!ssn || ssn.length !== 10) return ssn
     return `${ssn.slice(0, 6)}/${ssn.slice(6)}`
@@ -94,7 +60,7 @@ const clientOptions = computed(() =>
         .filter(u => u.role?.name.toLowerCase() === 'klient')
         .map(u => ({
             label: `${u.firstName} ${u.lastName} (${formatSsn(u.ssn)})`,
-            value: u.id
+            value: Number(u.id)
         }))
 )
 
@@ -103,11 +69,66 @@ const advisorOptions = computed(() =>
         .filter(u => u.role?.name.toLowerCase() === 'poradce')
         .map(u => ({
             label: `${u.firstName} ${u.lastName} (${formatSsn(u.ssn)})`,
-            value: u.id
+            value: Number(u.id)
         }))
 )
 
 const isValidDate = d => d && !isNaN(Date.parse(d))
+
+const loadContract = async (id) => {
+    try {
+        loading.value = true
+        const data = await api(`/api/Contracts/${id}`)
+        const inst = institutions.value.find(i => i.name === data.institutionName)
+        institutionSelect.value = inst ? inst.id : '__new__'
+        if (!inst) newInstitutionName.value = data.institutionName || ''
+
+        form.value.dateSigned = data.dateSigned?.slice(0, 10) || today
+        form.value.dateValidFrom = data.dateValidFrom?.slice(0, 10) || today
+        form.value.dateValidTo = data.dateValidTo?.slice(0, 10) || ''
+
+        form.value.clientIds = data.users
+            .filter(u => u.roleName?.toLowerCase() === 'klient')
+            .map(u => Number(u.id))
+
+        form.value.advisorIds = data.users
+            .filter(u => u.roleName?.toLowerCase() === 'poradce')
+            .map(u => Number(u.id))
+
+        originalReferenceNumber.value = data.referenceNumber || ''
+    } catch (err) {
+        error.value = 'Nepodařilo se načíst data.'
+        console.error(err)
+    } finally {
+        loading.value = false
+    }
+}
+
+onMounted(async () => {
+    if (auth.user?.role?.toLowerCase() === 'klient') {
+        router.replace('/contracts')
+        return
+    }
+
+    try {
+        institutions.value = await api('/api/Institutions')
+        users.value = await api('/api/Users')
+
+        if (contractId.value) {
+            await loadContract(contractId.value)
+        }
+    } catch (err) {
+        error.value = 'Chyba při načítání institucí nebo uživatelů.'
+        console.error(err)
+    }
+})
+
+watch(() => route.params.id, async (newId) => {
+    if (newId) {
+        contractId.value = newId
+        await loadContract(newId)
+    }
+})
 
 const validateForm = () => {
     let valid = true
@@ -137,17 +158,11 @@ const validateForm = () => {
         errors.value.advisors = 'Vyberte alespoň jednoho poradce.'
         valid = false
     }
-    if (!form.value.dateSigned) {
-        errors.value.dateSigned = 'Zadejte datum podpisu.'
-        valid = false
-    } else if (!isValidDate(form.value.dateSigned)) {
+    if (!form.value.dateSigned || !isValidDate(form.value.dateSigned)) {
         errors.value.dateSigned = 'Datum podpisu není platné.'
         valid = false
     }
-    if (!form.value.dateValidFrom) {
-        errors.value.dateValidFrom = 'Zadejte datum platnosti od.'
-        valid = false
-    } else if (!isValidDate(form.value.dateValidFrom)) {
+    if (!form.value.dateValidFrom || !isValidDate(form.value.dateValidFrom)) {
         errors.value.dateValidFrom = 'Datum platnosti od není platné.'
         valid = false
     }
@@ -167,87 +182,52 @@ const validateForm = () => {
 const submitForm = async () => {
     if (!validateForm()) return
 
-    if (contractId) {
-        if (institutionSelect.value === '__new__') {
-            try {
-                await api('/api/Contracts/AddContractWithInstitution', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        id: Number(contractId),
-                        referenceNumber: originalReferenceNumber.value,
-                        institutionName: newInstitutionName.value.trim(),
-                        dateSigned: form.value.dateSigned,
-                        dateValidFrom: form.value.dateValidFrom,
-                        dateValidTo: form.value.dateValidTo,
-                        userIds: [...form.value.clientIds, ...form.value.advisorIds]
-                    })
-                })
-                modalMessage.value = 'Smlouva byla úspěšně upravena s novou institucí.'
-                showSuccessModal.value = true
-            } catch (error) {
-                alert('Nepodařilo se upravit smlouvu s novou institucí: ' + (error.message || error))
-            }
-            return
+    const payload = {
+        id: contractId.value ? Number(contractId.value) : undefined,
+        referenceNumber: originalReferenceNumber.value || `SML-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
+        institutionId: institutionSelect.value !== '__new__' ? institutionSelect.value : undefined,
+        institutionName: institutionSelect.value === '__new__' ? newInstitutionName.value.trim() : undefined,
+        dateSigned: form.value.dateSigned,
+        dateValidFrom: form.value.dateValidFrom,
+        dateValidTo: form.value.dateValidTo,
+        userIds: [...form.value.clientIds, ...form.value.advisorIds]
+    }
+
+    try {
+        if (contractId.value) {
+            const url = institutionSelect.value === '__new__'
+                ? '/api/Contracts/AddContractWithInstitution'
+                : `/api/Contracts/${contractId.value}`
+
+            const method = institutionSelect.value === '__new__' ? 'POST' : 'PUT'
+
+            await api(url, {
+                method,
+                body: JSON.stringify(payload)
+            })
+
+            modalMessage.value = institutionSelect.value === '__new__'
+                ? 'Smlouva byla úspěšně upravena s novou institucí.'
+                : 'Smlouva byla úspěšně upravena.'
+
+        } else {
+            const url = institutionSelect.value === '__new__'
+                ? '/api/Contracts/AddContractWithInstitution'
+                : '/api/Contracts'
+
+            await api(url, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            })
+
+            modalMessage.value = institutionSelect.value === '__new__'
+                ? `Smlouva byla úspěšně vytvořena.\nByla také přidána nová instituce: ${newInstitutionName.value.trim()}.`
+                : 'Smlouva byla úspěšně vytvořena.'
         }
 
-        try {
-            const contractToUpdate = {
-                id: Number(contractId),
-                referenceNumber: originalReferenceNumber.value,
-                institutionId: institutionSelect.value,
-                dateSigned: form.value.dateSigned,
-                dateValidFrom: form.value.dateValidFrom,
-                dateValidTo: form.value.dateValidTo,
-                UserIds: [...form.value.clientIds, ...form.value.advisorIds]
-            }
-            await api(`/api/Contracts/${contractId}`, {
-                method: 'PUT',
-                body: JSON.stringify(contractToUpdate)
-            })
-            modalMessage.value = 'Smlouva byla úspěšně upravena.'
-            showSuccessModal.value = true
-        } catch (error) {
-            alert('Nepodařilo se upravit smlouvu: ' + (error.message || error))
-        }
-    } else {
-        if (institutionSelect.value === '__new__') {
-            const name = newInstitutionName.value.trim()
-            try {
-                await api('/api/Contracts/AddContractWithInstitution', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        referenceNumber: `SML-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
-                        institutionName: name,
-                        dateSigned: form.value.dateSigned,
-                        dateValidFrom: form.value.dateValidFrom,
-                        dateValidTo: form.value.dateValidTo,
-                        userIds: [...form.value.clientIds, ...form.value.advisorIds]
-                    })
-                })
-                modalMessage.value = `Smlouva byla úspěšně vytvořena.\nByla také přidána nová instituce: ${name}.`
-                showSuccessModal.value = true
-            } catch (error) {
-                alert('Nepodařilo se přidat instituci a vytvořit smlouvu: ' + (error.message || error))
-            }
-        } else {
-            try {
-                await api('/api/Contracts', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        referenceNumber: `SML-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
-                        institutionId: institutionSelect.value,
-                        dateSigned: form.value.dateSigned,
-                        dateValidFrom: form.value.dateValidFrom,
-                        dateValidTo: form.value.dateValidTo,
-                        userIds: [...form.value.clientIds, ...form.value.advisorIds]
-                    })
-                })
-                modalMessage.value = 'Smlouva byla úspěšně vytvořena.'
-                showSuccessModal.value = true
-            } catch (error) {
-                alert('Nepodařilo se vytvořit smlouvu: ' + (error.message || error))
-            }
-        }
+        showSuccessModal.value = true
+    } catch (error) {
+        alert('Nepodařilo se uložit smlouvu: ' + (error.message || error))
     }
 }
 
@@ -256,6 +236,7 @@ const closeModal = () => {
     router.push('/contracts')
 }
 </script>
+
 
 <template>
     <div
