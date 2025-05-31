@@ -41,7 +41,7 @@ Backendová část je dostupná v samostatném repozitáři: [blogic-crm-back](h
    npm install
    ```
 
-4. Aplikace se spustí pomocí příkazu:
+4. Aplikace se spustí pomocí příkazu(na ukázku stačí pouze dev verze):
    ```bash
    npm run dev
    ```
