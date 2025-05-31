@@ -1,29 +1,76 @@
-# blogic-crm-front
+# Blogic CRM – Frontend (Vue.js 3)
 
-This template should help get you started developing with Vue 3 in Vite.
+Tento repozitář slouží jako klientská část aplikace **Blogic CRM** – uživatelské rozhraní pro správu smluv, klientů a poradců.
 
-## Recommended IDE Setup
+Backendová část je dostupná v samostatném repozitáři: [blogic-crm-back](https://github.com/DaLukCZ/blogic-crm-back)
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+---
 
-## Customize configuration
+## 🌐 Použité technologie
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+- Vue 3 (Composition API)
+- Vite
+- Vue Router
+- Axios (pro volání API)
 
-## Project Setup
+---
 
-```sh
-npm install
-```
+## 💻 Požadavky na prostředí
 
-### Compile and Hot-Reload for Development
+| Nástroj              | Verze    |
+|----------------------|----------|
+| Node.js              | 18+      |
+| npm                  | 8+       |
+| Visual Studio Code   | libovolná|
 
-```sh
-npm run dev
-```
+---
 
-### Compile and Minify for Production
+## 🚀 Spuštění frontendu
 
-```sh
-npm run build
-```
+1. Repozitář je nejprve nutné naklonovat:
+
+   ```bash
+   git clone https://github.com/DaLukCZ/blogic-crm-front.git
+   ```
+
+2. Složka projektu by měla být otevřena v editoru (např. Visual Studio Code).
+
+3. V terminálu by měl být spuštěn následující příkaz pro instalaci závislostí V terminalu :
+   ```bash
+   npm install
+   ```
+
+4. Aplikace se spustí pomocí příkazu:
+   ```bash
+   npm run dev
+   ```
+
+Frontend bude dostupný na adrese `http://localhost:5173`.
+
+⚠️ Backend API (`blogic-crm-back`) by mělo být spuštěno na `https://localhost:7046`. V případě potřeby lze upravit `baseURL` v konfiguraci Axiosu.
+
+---
+
+## 🧭 Funkce aplikace
+
+- Seznam smluv, klientů a poradců
+- Detailní pohled na každou entitu
+- Prokliky mezi smlouvou a klientem/poradcem
+- CRUD operace (vytváření, úprava, mazání záznamů)
+- Formuláře s validací
+
+---
+
+## 📁 Struktura projektu
+
+- `/src/components` – znovupoužitelné UI komponenty
+- `/src/views` – jednotlivé stránky (Smlouvy, Klienti, Poradci)
+- `/src/router` – konfigurace směrování
+- `/src/services` – API volání pomocí Axios
+
+---
+
+## 🔗 Související repozitář
+
+Backendová část aplikace je dostupná v samostatném repozitáři:  
+➡️ [https://github.com/DaLukCZ/blogic-crm-back](https://github.com/DaLukCZ/blogic-crm-back)
